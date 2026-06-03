@@ -1,0 +1,57 @@
+{
+  "name": "ai-model-governance",
+  "properties": {
+    "displayName": "AI Model Governance",
+    "description": "Phase 0 initiative: blanket Deny on all AI model deployments in the scope it is assigned to, with a per-assignment, per-model approval allowlist. Bundles Cognitive Services model deployments and Azure ML/Foundry serverless endpoints into one assignable unit.",
+    "policyType": "Custom",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "AI Governance"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect (applies to all member policies)",
+          "description": "Audit for soak, Deny in steady state. Defaults to Audit so an accidental assignment never silently black-holes deployments."
+        },
+        "allowedValues": [ "Audit", "Deny", "Disabled" ],
+        "defaultValue": "Audit"
+      },
+      "allowedCognitiveServicesModels": {
+        "type": "Array",
+        "metadata": {
+          "displayName": "Allowed Cognitive Services / Azure OpenAI models",
+          "description": "Array in form '<format>/<name>'. Empty = deny all."
+        },
+        "defaultValue": []
+      },
+      "allowedServerlessOffers": {
+        "type": "Array",
+        "metadata": {
+          "displayName": "Allowed serverless (MaaS) offers",
+          "description": "Array in form '<publisher>/<offerName>'. Empty = deny all."
+        },
+        "defaultValue": []
+      }
+    },
+    "policyDefinitions": [
+      {
+        "policyDefinitionReferenceId": "denyCogSvcModelDeployments",
+        "policyDefinitionId": "/subscriptions/<SUBSCRIPTION_ID>/providers/Microsoft.Authorization/policyDefinitions/deny-cognitive-services-model-deployments",
+        "parameters": {
+          "effect": { "value": "[parameters('effect')]" },
+          "allowedModels": { "value": "[parameters('allowedCognitiveServicesModels')]" }
+        }
+      },
+      {
+        "policyDefinitionReferenceId": "denyMlwServerlessEndpoints",
+        "policyDefinitionId": "/subscriptions/<SUBSCRIPTION_ID>/providers/Microsoft.Authorization/policyDefinitions/deny-ml-serverless-endpoints",
+        "parameters": {
+          "effect": { "value": "[parameters('effect')]" },
+          "allowedModels": { "value": "[parameters('allowedServerlessOffers')]" }
+        }
+      }
+    ]
+  }
+}

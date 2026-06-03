@@ -1,0 +1,19 @@
+{
+  "name": "ai-model-governance",
+  "properties": {
+    "displayName": "AI Model Governance — baseline deny",
+    "description": "Phase 0 baseline assignment for the test subscription. Empty allowlists = blanket deny of every AI model deployment and every MaaS offer.",
+    "policyDefinitionId": "/subscriptions/<SUBSCRIPTION_ID>/providers/Microsoft.Authorization/policySetDefinitions/ai-model-governance",
+    "enforcementMode": "Default",
+    "parameters": {
+      "effect": { "value": "Deny" },
+      "allowedCognitiveServicesModels": { "value": [] },
+      "allowedServerlessOffers": { "value": [] }
+    },
+    "nonComplianceMessages": [
+      {
+        "message": "AI model deployments are blocked by the AI Model Governance policy. Submit a model-approval ticket; once approved, this subscription's allowlist will be updated."
+      }
+    ]
+  }
+}

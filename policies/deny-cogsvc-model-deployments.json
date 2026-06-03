@@ -1,0 +1,49 @@
+{
+  "name": "deny-cognitive-services-model-deployments",
+  "properties": {
+    "displayName": "Deny Cognitive Services model deployments not in the approved list",
+    "policyType": "Custom",
+    "mode": "All",
+    "description": "Denies creation or update of Azure Cognitive Services / Azure OpenAI / Azure AI Foundry model deployments (Microsoft.CognitiveServices/accounts/deployments) unless the model identifier <format>/<name> is present in the allowedModels parameter. An empty allowedModels array denies every model — this is the default blanket-deny posture.",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "AI Governance"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Use Audit during rollout soak, Deny in steady state. Defaults to Audit so an accidental assignment never silently black-holes deployments."
+        },
+        "allowedValues": [ "Audit", "Deny", "Disabled" ],
+        "defaultValue": "Audit"
+      },
+      "allowedModels": {
+        "type": "Array",
+        "metadata": {
+          "displayName": "Allowed models",
+          "description": "Array of approved models in the form '<format>/<name>', e.g. ['OpenAI/gpt-4o','OpenAI/text-embedding-3-large']. Empty array means all models are denied."
+        },
+        "defaultValue": []
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.CognitiveServices/accounts/deployments"
+          },
+          {
+            "value": "[concat(field('Microsoft.CognitiveServices/accounts/deployments/model.format'), '/', field('Microsoft.CognitiveServices/accounts/deployments/model.name'))]",
+            "notIn": "[parameters('allowedModels')]"
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]"
+      }
+    }
+  }
+}

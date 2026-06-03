@@ -1,0 +1,23 @@
+{
+  "name": "ai-model-governance",
+  "properties": {
+    "displayName": "AI Model Governance — gpt-4o approved",
+    "description": "Same assignment as the baseline, after the AI Governance Board approved OpenAI/gpt-4o for this subscription. Only this one model is now deployable; every other model and every MaaS offer remain blocked.",
+    "policyDefinitionId": "/subscriptions/<SUBSCRIPTION_ID>/providers/Microsoft.Authorization/policySetDefinitions/ai-model-governance",
+    "enforcementMode": "Default",
+    "parameters": {
+      "effect": { "value": "Deny" },
+      "allowedCognitiveServicesModels": {
+        "value": [
+          "OpenAI/gpt-4o"
+        ]
+      },
+      "allowedServerlessOffers": { "value": [] }
+    },
+    "nonComplianceMessages": [
+      {
+        "message": "Only the AI models on this subscription's approved list may be deployed. Submit a model-approval ticket to add another model."
+      }
+    ]
+  }
+}
