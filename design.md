@@ -50,6 +50,23 @@ redesign.
 > …) — use an explicit `allowedKinds` allowlist if your org legitimately uses
 > those workloads.
 
+### 2.1 What is explicitly out of scope for Phase 0
+
+Azure Policy can only see and act on **Azure Resource Manager resource types**.
+Anything that does not surface as one of the resource types in the table above
+is invisible to this initiative — by definition, not by oversight. Two cases
+come up often enough to call out:
+
+| Scenario                                                                                                   | Blocked by Phase 0? | Why / where it's handled                                                                                                                                            |
+| ---------------------------------------------------------------------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Running an LLM yourself on a VM / AKS / Container App / Functions (Ollama, vLLM, llama.cpp, HF Transformers, …) | No                  | These aren't AI resource types, they're generic compute. ARM only sees "a VM" or "a container app" — it cannot inspect the process running inside. Out of scope for Azure Policy on model resources; addressed at the network/runtime layer in **Phase 2** (APIM + egress controls). |
+| Calling third-party LLMs (OpenAI.com, Anthropic, Gemini, AWS Bedrock) from inside Azure                    | No                  | These are public HTTPS endpoints on the internet. No Azure resource is created when an app calls them, so there is nothing for Azure Policy to match. Stopped at the network egress layer in **Phase 2** (egress through APIM, Firewall, NSGs).                                       |
+
+The takeaway: **Phase 0 is a control-plane allowlist for managed Azure GenAI
+services**. It governs what model resources can be *provisioned* in your
+subscription. It does not, and cannot, govern what arbitrary code on arbitrary
+compute chooses to call over the network. That is a Phase 2 concern.
+
 ---
 
 ## 3. Why one parameterized policy, not "Deny + Allow"
