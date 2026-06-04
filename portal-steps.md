@@ -330,13 +330,19 @@ Simulates the AI Governance Board approving exactly one model for this subscript
 2. Set scope at the top to your test subscription.
 3. Click **AI Model Governance — baseline deny**.
 4. Toolbar → **Edit assignment**.
-5. **Parameters** tab → uncheck *Only show parameters that need input* if needed.
-6. Under **Allowed Cognitive Services / Azure OpenAI models** click **+ Add new value** (or **+** icon) and type exactly:
-   ```
-   OpenAI/gpt-4o
-   ```
-   - **Case-sensitive.** `openai/gpt-4o` will NOT match. `gpt-4o` alone will NOT match. The format is `<format>/<name>` and for Azure OpenAI the format is always `OpenAI`.
-7. Leave **Allowed serverless (MaaS) offers** empty.
+5. **Parameters** tab — leave *Only show parameters that need input* checked; the two allowlist parameters will be visible. (The **Effect** parameter doesn't show up because you'll leave it on its current value, `Deny`.)
+6. Edit **Allowed Cognitive Services / Azure OpenAI models**:
+   - Click the small **`...`** (three-dot) button to the right of the input box. A side editor titled *Allowed Cognitive Services / Azure OpenAI models* opens with an **Editor** showing the current value, e.g. `[]`.
+   - Replace the editor's contents with exactly:
+     ```json
+     ["OpenAI/gpt-4o"]
+     ```
+   - Click **Save** in the side editor. The main parameters list now shows `["OpenAI/gpt-4o"]` for that row.
+
+   > **Case- and slash-sensitive.** `openai/gpt-4o` will NOT match. `gpt-4o` alone will NOT match. The format is `<format>/<name>` and for Azure OpenAI the format is always `OpenAI`.
+   >
+   > To approve more models later, add them to the array: `["OpenAI/gpt-4o", "OpenAI/gpt-4o-mini", "OpenAI/text-embedding-3-large"]`.
+7. Leave **Allowed serverless (MaaS) offers** as `[]` (no MaaS offer is being approved in this step).
 8. Optionally update **Display name** to `AI Model Governance — gpt-4o approved` (matches [assignments/sub-test-after-gpt4o-approval.json](assignments/sub-test-after-gpt4o-approval.json)) and the non-compliance message to *"Only the AI models on this subscription's approved list may be deployed. Submit a model-approval ticket to add another model."*
 9. **Review + save → Save**.
 
@@ -487,9 +493,9 @@ not the friendly name (`deny-cognitive-services-model-deployments`) that the Pow
 
 If you ever switch to PowerShell or `az` later, those tools *do* honor the `name` field in the JSON, and the friendly names will come back. The two paths are interoperable; you can delete a portal-created definition and recreate it via script without changing anything else.
 
-### 2. The portal's "Allowed values" UI for Array parameters can be fiddly
+### 2. Array-typed parameters use a JSON editor at assignment time, not a "+ Add row" list
 
-When you edit the assignment in [Step 6](#step-6--approve-a-single-model-gpt-4o), the **Allowed Cognitive Services / Azure OpenAI models** parameter renders as a list of strings. After typing `OpenAI/gpt-4o` you **must** press **Enter** or click outside the box to commit the row — otherwise the value is dropped silently when you click **Save**. Re-open the assignment after saving and confirm the value persisted.
+When you edit the assignment in [Step 6](#step-6--approve-a-single-model-gpt-4o), the **Allowed Cognitive Services / Azure OpenAI models** parameter shows a small read-only input with a **`...`** (three-dot) button. Clicking `...` opens a side editor where you paste the full JSON array (e.g. `["OpenAI/gpt-4o"]`) and click **Save**. Typing directly into the small input box won't work — you have to use the side editor. After saving, the main parameters list reflects the JSON; re-open the assignment if you want to confirm it persisted.
 
 ---
 
