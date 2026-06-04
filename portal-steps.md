@@ -1,6 +1,6 @@
 # Portal Steps — Phase 0 AI Model Governance, end-to-end in the Azure Portal
 
-This walkthrough is the **portal-only** equivalent of [RUNBOOK.md](RUNBOOK.md). Every action is a click in the [Azure portal](https://portal.azure.com) — no PowerShell, no Azure CLI, no `azd`. The JSON files in [policies/](policies/) and [assignments/](assignments/) are used only as **copy-paste sources** for the portal's JSON editors.
+End-to-end portal walkthrough: create the two policy definitions, bundle them into an initiative, assign with an empty allowlist (deny all), prove the deny works, approve a single model, prove only that model gets through, rehearse the kill switch, and clean up. Every step is a click in the [Azure portal](https://portal.azure.com) or [Azure AI Foundry](https://ai.azure.com) — nothing else.
 
 Audience: a governance / cloud platform engineer with **Owner** (or equivalent custom role with `Microsoft.Authorization/policyDefinitions/*`, `Microsoft.Authorization/policySetDefinitions/*`, `Microsoft.Authorization/policyAssignments/*`, and `Microsoft.CognitiveServices/*`) on the test subscription.
 
@@ -22,7 +22,7 @@ Time: ~20–30 minutes including the 2 × 5-minute policy-propagation waits.
 10. [Step 9 — Cleanup](#step-9--cleanup)
 11. [Optional — Apply the stricter account-kinds policy](#optional--apply-the-stricter-account-kinds-policy)
 12. [Troubleshooting (portal)](#troubleshooting-portal)
-13. [Two portal quirks worth knowing up front](#two-portal-quirks-worth-knowing-up-front)
+13. [Portal quirks worth knowing](#portal-quirks-worth-knowing)
 
 ---
 
@@ -31,12 +31,6 @@ Time: ~20–30 minutes including the 2 × 5-minute policy-propagation waits.
 1. An empty Azure subscription you can experiment in — no production workloads.
 2. **Owner** role on that subscription. Check at **Subscriptions → \<your sub\> → Access control (IAM) → Role assignments → your account**.
 3. A browser signed in to the right tenant. Verify the tenant in the top-right of the portal (your account avatar → directory name).
-4. The JSON files in this repo open in a text editor so you can copy from them. Files you will paste from:
-   - [policies/deny-cogsvc-model-deployments.json](policies/deny-cogsvc-model-deployments.json)
-   - [policies/deny-mlw-serverless-endpoints.json](policies/deny-mlw-serverless-endpoints.json)
-   - [policies/initiative-ai-model-governance.json](policies/initiative-ai-model-governance.json)
-
-Read [Two portal quirks worth knowing up front](#two-portal-quirks-worth-knowing-up-front) **before** Step 1 — it will save you a re-do on the initiative step.
 
 ---
 
@@ -179,9 +173,7 @@ You now have two custom definitions and two Definition IDs.
 
 ## Step 3 — Create the initiative (bundle both definitions)
 
-The portal lets you build an initiative two ways. Use **Path A (UI-driven)** — it sidesteps the `<SUBSCRIPTION_ID>` placeholder issue in the initiative JSON. Path B (paste JSON) is included as an alternative.
-
-### Path A — UI-driven (recommended)
+Build the initiative through the portal UI — it picks the two definitions from the catalog and wires their parameters to initiative-level parameters that will be set at assignment time.
 
 1. **Policy → Definitions → + Initiative definition**.
 2. **Basics** tab:
@@ -263,17 +255,6 @@ The portal lets you build an initiative two ways. Use **Path A (UI-driven)** —
    >
    > If the **Value(s)** dropdown is empty when you pick `Use Initiative Parameter`, you didn't create the matching initiative parameter in step 5 — go back to the **Initiative parameters** tab and add it, then return here.
 7. **Review + create** → confirm the summary → **Create**.
-
-### Path B — paste the initiative JSON (alternative)
-
-Use this only if you prefer JSON. You must edit the JSON first.
-
-1. In a text editor open [policies/initiative-ai-model-governance.json](policies/initiative-ai-model-governance.json).
-2. Find both occurrences of the string `<SUBSCRIPTION_ID>` and replace each with your test subscription's GUID (Subscriptions blade → your sub → copy **Subscription ID**).
-3. If your Step 1/Step 2 definitions got auto-assigned GUID resource names (see [Two portal quirks](#two-portal-quirks-worth-knowing-up-front)), also replace the two definition names in the `policyDefinitionId` values with the GUIDs you copied in Steps 1 and 2 — i.e. swap `deny-cognitive-services-model-deployments` and `deny-ml-serverless-endpoints` for the actual definition names visible in the portal.
-4. **Policy → Definitions → + Initiative definition → Basics**: set Definition location and a name.
-5. Skip the Policies / Parameters tabs.
-6. **Review + create** offers no JSON paste box — Path B is only viable via the **ARM template** path (**Templates** in the portal → deploy as an ARM template containing the initiative JSON). For most users, **Path A is simpler and is the recommended approach.**
 
 ---
 
@@ -469,8 +450,8 @@ Heads-up: this is **stricter** and breaks any team currently standing up a Cogni
 | **+ Policy definition** isn't available / greyed out | Your account doesn't have `Microsoft.Authorization/policyDefinitions/write` at the scope | Check **Subscriptions → \<sub\> → Access control (IAM) → My access**. You need Owner, Resource Policy Contributor, or equivalent. |
 | Pasting JSON into the policy rule editor fails with "Invalid JSON" | You pasted the outer `{ "name": ..., "properties": { ... } }` wrapper, or your paste lost a trailing brace | Paste only the block shown in the step — the first key must be `"mode"` and the last closing brace must match the first opening brace. Do **not** include `"name"`, `"displayName"`, `"description"`, `"metadata"`, or a `"properties"` wrapper at the top level. |
 | **Create initiative parameter** dialog shows red **"Invalid JSON"** under Allowed Values | The Allowed Values box is a JSON editor, but you typed free-text (e.g. `Audit, Deny, Disabled` or `[Audit, Deny, Disabled]`) | Wrap strings in double quotes and arrays in square brackets: `["Audit", "Deny", "Disabled"]`. Note: for **String**-typed parameters the **Default Value** is a plain text input (type `Audit`, no quotes); for **Array**-typed parameters Default Value is also JSON (`[]`). |
-| `effect` parameter saved as Array and the assignment shows a list editor instead of a dropdown | Type was left at the dialog's default (Array) instead of being switched to String | Re-open **Initiative parameters → effect → Edit**, change **Type** to **String**, set Allowed Values to `["Audit", "Deny", "Disabled"]` and Default Value to `"Audit"`, save. || **Policy parameters** tab — Value(s) dropdown is empty after picking `Use Initiative Parameter` | You haven't created an initiative parameter of the right Type yet, or the Type doesn't match (e.g. row is Array, but you only have a String initiative parameter) | Go back to **Initiative parameters → + Add initiative parameter** and add the missing one with the correct Type. The Value(s) dropdown filters to only show initiative parameters whose Type matches the row's Type. |
-| Assignment-time inputs for Effect / Allowed models have no effect — initiative always uses Audit / empty list | One or more rows on the **Policy parameters** tab were left at `Default Value` or `Set value` instead of `Use Initiative Parameter` | Edit the initiative → **Policy parameters** tab → change every row's **Value Type** to `Use Initiative Parameter` and pick the matching initiative param in **Value(s)**. Save and re-test. || Initiative creation fails: "Policy definition not found" | Initiative JSON's `policyDefinitionId` still has `<SUBSCRIPTION_ID>` placeholder, or it references definition names that don't exist | Use **Path A (UI-driven)** in [Step 3](#step-3--create-the-initiative-bundle-both-definitions). It picks the definitions from the catalog and avoids the issue entirely. |
+| `effect` parameter saved as Array and the assignment shows a list editor instead of a dropdown | Type was left at the dialog's default (Array) instead of being switched to String | Re-open **Initiative parameters → effect → Edit**, change **Type** to **String**, set Allowed Values to `["Audit", "Deny", "Disabled"]` and Default Value to `Audit` (no quotes), save. || **Policy parameters** tab — Value(s) dropdown is empty after picking `Use Initiative Parameter` | You haven't created an initiative parameter of the right Type yet, or the Type doesn't match (e.g. row is Array, but you only have a String initiative parameter) | Go back to **Initiative parameters → + Add initiative parameter** and add the missing one with the correct Type. The Value(s) dropdown filters to only show initiative parameters whose Type matches the row's Type. |
+| Assignment-time inputs for Effect / Allowed models have no effect — initiative always uses Audit / empty list | One or more rows on the **Policy parameters** tab were left at `Default Value` or `Set value` instead of `Use Initiative Parameter` | Edit the initiative → **Policy parameters** tab → change every row's **Value Type** to `Use Initiative Parameter` and pick the matching initiative param in **Value(s)**. Save and re-test. |
 | Assignment created but deployment still succeeds | Tested before 2–5 minute propagation, OR the assignment scope is below the resource being created (e.g. assigned to a different RG) | Wait 5 minutes. Verify scope in **Policy → Assignments → \<assignment\> → Overview**. Re-test. |
 | Deployment still fails with `RequestDisallowedByPolicy` after you approved the model | Allowlist string doesn't match the model identifier exactly | Compare the value in the assignment's `allowedCognitiveServicesModels` to the format `<format>/<name>` — `OpenAI/gpt-4o`, **not** `openai/gpt-4o`, `OpenAI/GPT-4o`, or `gpt-4o`. Case- and slash-sensitive. |
 | Two policy definitions with the same display name appear in the catalog | You saved the same definition twice | Delete duplicates from **Policy → Definitions** (filter **Type = Custom**). Recreate the initiative if it now points at the wrong one. |
@@ -479,19 +460,17 @@ Heads-up: this is **stricter** and breaks any team currently standing up a Cogni
 
 ---
 
-## Two portal quirks worth knowing up front
+## Portal quirks worth knowing
 
-### 1. The portal does not let you set the resource name of a custom definition
+### 1. The portal generates a GUID for the definition's resource name
 
-When you create a definition via **+ Policy definition**, the portal's **Name** field sets the **displayName**, and Azure assigns a **GUID** as the underlying resource name. Result: the definition's full ID looks like
+When you create a definition via **+ Policy definition**, the **Name** field you fill in becomes the **displayName**, and Azure assigns a **GUID** as the underlying resource name. The full ID looks like:
+
 ```
 /subscriptions/<sub>/providers/Microsoft.Authorization/policyDefinitions/<some-guid>
 ```
-not the friendly name (`deny-cognitive-services-model-deployments`) that the PowerShell-based runbook uses.
 
-**Implication:** the initiative JSON in [policies/initiative-ai-model-governance.json](policies/initiative-ai-model-governance.json) references the definitions by their friendly name. If you paste that JSON directly, the references won't resolve. **That is why [Step 3 Path A](#path-a--ui-driven-recommended) builds the initiative through the UI** — the UI picker resolves definitions by displayName, regardless of the underlying resource name.
-
-If you ever switch to PowerShell or `az` later, those tools *do* honor the `name` field in the JSON, and the friendly names will come back. The two paths are interoperable; you can delete a portal-created definition and recreate it via script without changing anything else.
+That's why [Step 3](#step-3--create-the-initiative-bundle-both-definitions) builds the initiative by picking the definitions from the catalog rather than asking you to type any IDs — the UI resolves them by displayName.
 
 ### 2. Array-typed parameters use a JSON editor at assignment time, not a "+ Add row" list
 
@@ -499,7 +478,7 @@ When you edit the assignment in [Step 6](#step-6--approve-a-single-model-gpt-4o)
 
 ---
 
-## What this proves (same as the script-based runbook)
+## What this proves
 
 Complete Step 7 successfully and you've demonstrated the Phase 0 contract:
 
@@ -507,4 +486,4 @@ Complete Step 7 successfully and you've demonstrated the Phase 0 contract:
 2. A single edit (add one string to the allowlist) approves *one* model, leaving the rest denied.
 3. The kill switch (`Effect = Disabled`) flips enforcement off without losing the configuration.
 
-For the architecture rationale and the Phase 1+ direction, see [design.md](design.md). For the script-driven version of this same workflow, see [RUNBOOK.md](RUNBOOK.md).
+For the architecture rationale and the Phase 1+ direction, see [design.md](design.md).
