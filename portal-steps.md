@@ -309,19 +309,14 @@ This is the moment enforcement begins.
 
 ## Step 5 — Prove the deny works
 
-1. **Create a resource → AI + Machine Learning → Azure OpenAI → Create**.
-2. **Basics**:
-   - **Subscription** = test subscription.
-   - **Resource group** = **Create new** → `rg-aipolicy-test`.
-   - **Region** = `East US` (or any region with capacity).
-   - **Name** = `aoai-test-<your-initials>`.
-   - **Pricing tier** = `Standard S0`.
-3. **Network → All networks**. **Tags →** skip. **Review + submit → Create**.
-4. Wait for "Your deployment is complete" → **Go to resource**.
-5. Left nav → **Resource Management → Model deployments** → **Manage Deployments** (this opens Azure AI Foundry).
-6. In Azure AI Foundry's Deployments view → **+ Deploy model → Deploy base model**.
-7. Pick **gpt-4o-mini** (any model — doesn't matter which) → **Confirm** → **Deploy**.
-8. **Expected result**: the deployment fails almost immediately with **`RequestDisallowedByPolicy`**. Expand the error — it cites the assignment **AI Model Governance — baseline deny** and the member policy **Deny Cognitive Services model deployments...**.
+All Azure OpenAI / Azure AI model deployments today happen through **Azure AI Foundry**, so we'll attempt the deployment from there — [https://ai.azure.com](https://ai.azure.com). The policy hooks at the ARM resource-type level (`Microsoft.CognitiveServices/accounts/deployments`), so it doesn't matter whether the deploy is triggered from the Azure portal, AI Foundry, Azure CLI, or an SDK — the Deny fires in the ARM control plane and the Foundry UI surfaces the error directly.
+
+1. Open [https://ai.azure.com](https://ai.azure.com) in a browser signed in to the same tenant.
+2. Top-right project picker → make sure you're in a project tied to your **test subscription**. If you don't have one, create one:
+   - **+ New project** → **Hub** = create new → **Subscription** = your test subscription, **Resource group** = `rg-aipolicy-test` (create if missing), **Region** = `East US` (or any region with capacity) → **Create**.
+3. Left nav → **My assets → Models + endpoints** (or **Build and customize → Deployments**, depending on the Foundry layout) → **+ Deploy model → Deploy base model**.
+4. Pick **gpt-4o-mini** (any model — the choice doesn't matter, all of them should be blocked) → **Confirm** → **Deploy**.
+5. **Expected result**: the deployment fails almost immediately with **`RequestDisallowedByPolicy`**. Expand the error — it cites the assignment **AI Model Governance — baseline deny** and the member policy **Deny Cognitive Services model deployments...**.
 
 > If the deployment **succeeds**, jump to [Troubleshooting](#troubleshooting-portal) — the most common cause is "I tested before 5 minutes had passed".
 
@@ -351,14 +346,14 @@ Simulates the AI Governance Board approving exactly one model for this subscript
 
 ## Step 7 — Re-test: gpt-4o succeeds, everything else still denied
 
-Back in Azure AI Foundry (the **Model deployments** view of your Azure OpenAI account):
+Back in [Azure AI Foundry](https://ai.azure.com), same project as Step 5 → **Models + endpoints** (or **Deployments**):
 
 1. **+ Deploy model → Deploy base model → gpt-4o → Confirm → Deploy.**
    - **Expected:** Succeeds. The deployment shows as **Succeeded** within ~30 s.
 2. **+ Deploy model → Deploy base model → gpt-4o-mini → Confirm → Deploy.**
    - **Expected:** Fails with **`RequestDisallowedByPolicy`**, citing the same assignment.
 
-This pair (one allowed, one denied, same account, same operator) is the **definitive Phase 0 acceptance test**.
+This pair (one allowed, one denied, same project, same operator) is the **definitive Phase 0 acceptance test**.
 
 ---
 
