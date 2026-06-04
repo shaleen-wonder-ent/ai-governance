@@ -292,15 +292,6 @@ This is the moment enforcement begins.
 
 All Azure OpenAI / Azure AI model deployments today happen through **Azure AI Foundry**, so we'll attempt the deployment from there — [https://ai.azure.com](https://ai.azure.com). The policy hooks at the ARM resource-type level (`Microsoft.CognitiveServices/accounts/deployments`), so it doesn't matter whether the deploy is triggered from the Azure portal, AI Foundry, Azure CLI, or an SDK — the Deny fires in the ARM control plane and the Foundry UI surfaces the error directly.
 
-1. Open [https://ai.azure.com](https://ai.azure.com) in a browser signed in to the same tenant.
-2. Top-right project picker → make sure you're in a project tied to your **test subscription**. If you don't have one, create one:
-   - **+ New project** → **Hub** = create new → **Subscription** = your test subscription, **Resource group** = `rg-aipolicy-test` (create if missing), **Region** = `East US` (or any region with capacity) → **Create**.
-3. Left nav → **My assets → Models + endpoints** (or **Build and customize → Deployments**, depending on the Foundry layout) → **+ Deploy model → Deploy base model**.
-4. Pick **gpt-4o-mini** (any model — the choice doesn't matter, all of them should be blocked) → **Confirm** → **Deploy**.
-5. **Expected result**: the deployment fails almost immediately with **`RequestDisallowedByPolicy`**. Expand the error — it cites the assignment **AI Model Governance — baseline deny** and the member policy **Deny Cognitive Services model deployments...**.
-
-> If the deployment **succeeds**, jump to [Troubleshooting](#troubleshooting-portal) — the most common cause is "I tested before 5 minutes had passed".
-
 ---
 
 ## Step 6 — Approve a single model (gpt-4o)
@@ -336,9 +327,9 @@ Simulates the AI Governance Board approving exactly one model for this subscript
 Back in [Azure AI Foundry](https://ai.azure.com), same project as Step 5 → **Models + endpoints** (or **Deployments**):
 
 1. **+ Deploy model → Deploy base model → gpt-4o → Confirm → Deploy.**
-   - **Expected:** Succeeds. The deployment shows as **Succeeded** within ~30 s.
-2. **+ Deploy model → Deploy base model → gpt-4o-mini → Confirm → Deploy.**
-   - **Expected:** Fails with **`RequestDisallowedByPolicy`**, citing the same assignment.
+   - **Expected:** Succeeds. The deployment shows as **Succeeded** within ~30 s — because `OpenAI/gpt-4o` is now on the allowlist.
+2. **+ Deploy model → Deploy base model → pick any other model from the gpt family** (e.g. `gpt-4o-mini`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4-turbo`, `gpt-35-turbo`) **→ Confirm → Deploy.**
+   - **Expected:** Fails with **`RequestDisallowedByPolicy`**, citing the same assignment **AI Model Governance — baseline deny**. Only `gpt-4o` is approved; every other gpt-family variant — and every non-gpt model — is still denied.
 
 This pair (one allowed, one denied, same project, same operator) is the **definitive Phase 0 acceptance test**.
 
