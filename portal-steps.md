@@ -198,15 +198,51 @@ The portal lets you build an initiative two ways. Use **Path A (UI-driven)** —
    - Tick the two definitions you created in Steps 1 and 2.
    - Click **Add** at the bottom.
 4. Back on the **Policies** tab, click the first definition (`Deny Cognitive Services model deployments...`) → **Edit reference ID** → set to `denyCogSvcModelDeployments`. Click the second → set its reference ID to `denyMlwServerlessEndpoints`. (These names match the initiative JSON; they're optional but keep things tidy.)
-5. **Initiative parameters** tab → **+ Add initiative parameter**. Add three parameters — one row each:
+5. **Initiative parameters** tab → **+ Add initiative parameter**. Add three parameters — one row each.
 
-   | Name                              | Type   | Display name                                         | Allowed values            | Default value |
-   | --------------------------------- | ------ | ---------------------------------------------------- | ------------------------- | ------------- |
-   | `effect`                          | String | Effect (applies to all member policies)              | Audit, Deny, Disabled     | `Audit`       |
-   | `allowedCognitiveServicesModels`  | Array  | Allowed Cognitive Services / Azure OpenAI models     | *(leave blank)*           | `[]`          |
-   | `allowedServerlessOffers`         | Array  | Allowed serverless (MaaS) offers                     | *(leave blank)*           | `[]`          |
+   > **Important:** the **Allowed Values** and **Default Value** boxes are **JSON editors**, not free-text. Every value must be valid JSON — strings need double quotes, arrays need square brackets. If you see a red **Invalid JSON** message, that's why.
 
-   For Array parameters, use the **Strongly typed** option if shown, otherwise free-text — the empty default is `[]`.
+   **Parameter 1 — `effect`** (this one is **String**, not Array):
+   - **Name** = `effect`
+   - **Display name** = `Effect (applies to all member policies)`
+   - **Description** = `Audit for soak, Deny in steady state. Defaults to Audit so an accidental assignment never silently black-holes deployments.`
+   - **Type** = **String** ← change from the default Array
+   - **Enable Strong Type** = No
+   - **Allowed Values** (paste exactly, including brackets and quotes):
+     ```json
+     ["Audit", "Deny", "Disabled"]
+     ```
+   - **Default Value** (paste exactly, including quotes):
+     ```json
+     "Audit"
+     ```
+   - Click **Save**.
+
+   **Parameter 2 — `allowedCognitiveServicesModels`** (Array):
+   - **Name** = `allowedCognitiveServicesModels`
+   - **Display name** = `Allowed Cognitive Services / Azure OpenAI models`
+   - **Description** = `Array in form '<format>/<name>'. Empty = deny all.`
+   - **Type** = **Array**
+   - **Enable Strong Type** = No
+   - **Allowed Values** = *(leave blank)*
+   - **Default Value** (paste exactly):
+     ```json
+     []
+     ```
+   - Click **Save**.
+
+   **Parameter 3 — `allowedServerlessOffers`** (Array):
+   - **Name** = `allowedServerlessOffers`
+   - **Display name** = `Allowed serverless (MaaS) offers`
+   - **Description** = `Array in form '<publisher>/<offerName>'. Empty = deny all.`
+   - **Type** = **Array**
+   - **Enable Strong Type** = No
+   - **Allowed Values** = *(leave blank)*
+   - **Default Value** (paste exactly):
+     ```json
+     []
+     ```
+   - Click **Save**.
 6. **Policy parameters** tab — wire the initiative parameters down to each member policy:
 
    Row 1 — `Deny Cognitive Services model deployments...`:
@@ -418,6 +454,8 @@ Heads-up: this is **stricter** and breaks any team currently standing up a Cogni
 |---|---|---|
 | **+ Policy definition** isn't available / greyed out | Your account doesn't have `Microsoft.Authorization/policyDefinitions/write` at the scope | Check **Subscriptions → \<sub\> → Access control (IAM) → My access**. You need Owner, Resource Policy Contributor, or equivalent. |
 | Pasting JSON into the policy rule editor fails with "Invalid JSON" | You pasted the outer `{ "name": ..., "properties": { ... } }` wrapper, or your paste lost a trailing brace | Paste only the block shown in the step — the first key must be `"mode"` and the last closing brace must match the first opening brace. Do **not** include `"name"`, `"displayName"`, `"description"`, `"metadata"`, or a `"properties"` wrapper at the top level. |
+| **Create initiative parameter** dialog shows red **"Invalid JSON"** under Allowed Values or Default Value | The Allowed Values / Default Value boxes are JSON editors, but you typed free-text (e.g. `Audit` or `[Audit, Deny, Disabled]`) | Wrap strings in double quotes and arrays in square brackets: Allowed Values = `["Audit", "Deny", "Disabled"]`, Default Value = `"Audit"`. For empty arrays the default is `[]`. |
+| `effect` parameter saved as Array and the assignment shows a list editor instead of a dropdown | Type was left at the dialog's default (Array) instead of being switched to String | Re-open **Initiative parameters → effect → Edit**, change **Type** to **String**, set Allowed Values to `["Audit", "Deny", "Disabled"]` and Default Value to `"Audit"`, save. |
 | Initiative creation fails: "Policy definition not found" | Initiative JSON's `policyDefinitionId` still has `<SUBSCRIPTION_ID>` placeholder, or it references definition names that don't exist | Use **Path A (UI-driven)** in [Step 3](#step-3--create-the-initiative-bundle-both-definitions). It picks the definitions from the catalog and avoids the issue entirely. |
 | Assignment created but deployment still succeeds | Tested before 2–5 minute propagation, OR the assignment scope is below the resource being created (e.g. assigned to a different RG) | Wait 5 minutes. Verify scope in **Policy → Assignments → \<assignment\> → Overview**. Re-test. |
 | Deployment still fails with `RequestDisallowedByPolicy` after you approved the model | Allowlist string doesn't match the model identifier exactly | Compare the value in the assignment's `allowedCognitiveServicesModels` to the format `<format>/<name>` — `OpenAI/gpt-4o`, **not** `openai/gpt-4o`, `OpenAI/GPT-4o`, or `gpt-4o`. Case- and slash-sensitive. |
