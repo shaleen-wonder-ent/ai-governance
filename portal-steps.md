@@ -295,9 +295,12 @@ This is the moment enforcement begins.
    - **Allowed Cognitive Services / Azure OpenAI models** = leave the list **empty** (do not add any rows).
    - **Allowed serverless (MaaS) offers** = leave **empty**.
 4. **Remediation** tab — leave defaults (no managed identity, no remediation task — Deny doesn't need them).
-5. **Non-compliance messages** tab — add one message:
-   - **Policy definition** = *All Member Definitions*
-   - **Message** = `AI model deployments are blocked by the AI Model Governance policy. Submit a model-approval ticket; once approved, this subscription's allowlist will be updated.`
+5. **Non-compliance messages** tab:
+   - **Default non-compliance message** (the single text box at the top) — paste:
+     ```
+     AI model deployments are blocked by the AI Model Governance policy. Submit a model-approval ticket; once approved, this subscription's allowlist will be updated.
+     ```
+     This message automatically applies to **both** member policies — the table below shows the two definitions (`denyCogSvcModelDeployments`, `denyMlwServerlessEndpoints`) with checkmarks; you don't need to touch it. Only use **Edit message for selected policies** if you want a different message per policy.
 6. **Review + create** → confirm summary → **Create**.
 
 **Wait 2–5 minutes** before testing. Policy assignments take up to 30 minutes globally but typically propagate within 5 in a fresh subscription.
