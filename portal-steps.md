@@ -200,7 +200,7 @@ The portal lets you build an initiative two ways. Use **Path A (UI-driven)** —
 4. Back on the **Policies** tab, click the first definition (`Deny Cognitive Services model deployments...`) → **Edit reference ID** → set to `denyCogSvcModelDeployments`. Click the second → set its reference ID to `denyMlwServerlessEndpoints`. (These names match the initiative JSON; they're optional but keep things tidy.)
 5. **Initiative parameters** tab → **+ Add initiative parameter**. Add three parameters — one row each.
 
-   > **Important:** the **Allowed Values** and **Default Value** boxes are **JSON editors**, not free-text. Every value must be valid JSON — strings need double quotes, arrays need square brackets. If you see a red **Invalid JSON** message, that's why.
+   > **Important:** for **Array**-typed parameters, both **Allowed Values** and **Default Value** are **JSON editors** — values must be valid JSON (strings need double quotes, arrays need square brackets). For **String**-typed parameters, **Allowed Values** is still a JSON editor but **Default Value** is a plain text input (no quotes). If you see a red **Invalid JSON** message, that's why.
 
    **Parameter 1 — `effect`** (this one is **String**, not Array):
    - **Name** = `effect`
@@ -208,13 +208,13 @@ The portal lets you build an initiative two ways. Use **Path A (UI-driven)** —
    - **Description** = `Audit for soak, Deny in steady state. Defaults to Audit so an accidental assignment never silently black-holes deployments.`
    - **Type** = **String** ← change from the default Array
    - **Enable Strong Type** = No
-   - **Allowed Values** (paste exactly, including brackets and quotes):
+   - **Allowed Values** (JSON editor — paste exactly, including brackets and quotes):
      ```json
      ["Audit", "Deny", "Disabled"]
      ```
-   - **Default Value** (paste exactly, including quotes):
-     ```json
-     "Audit"
+   - **Default Value** (plain text input — type without quotes):
+     ```
+     Audit
      ```
    - Click **Save**.
 
@@ -225,7 +225,7 @@ The portal lets you build an initiative two ways. Use **Path A (UI-driven)** —
    - **Type** = **Array**
    - **Enable Strong Type** = No
    - **Allowed Values** = *(leave blank)*
-   - **Default Value** (paste exactly):
+   - **Default Value** (JSON editor — paste exactly):
      ```json
      []
      ```
@@ -238,7 +238,7 @@ The portal lets you build an initiative two ways. Use **Path A (UI-driven)** —
    - **Type** = **Array**
    - **Enable Strong Type** = No
    - **Allowed Values** = *(leave blank)*
-   - **Default Value** (paste exactly):
+   - **Default Value** (JSON editor — paste exactly):
      ```json
      []
      ```
@@ -454,7 +454,7 @@ Heads-up: this is **stricter** and breaks any team currently standing up a Cogni
 |---|---|---|
 | **+ Policy definition** isn't available / greyed out | Your account doesn't have `Microsoft.Authorization/policyDefinitions/write` at the scope | Check **Subscriptions → \<sub\> → Access control (IAM) → My access**. You need Owner, Resource Policy Contributor, or equivalent. |
 | Pasting JSON into the policy rule editor fails with "Invalid JSON" | You pasted the outer `{ "name": ..., "properties": { ... } }` wrapper, or your paste lost a trailing brace | Paste only the block shown in the step — the first key must be `"mode"` and the last closing brace must match the first opening brace. Do **not** include `"name"`, `"displayName"`, `"description"`, `"metadata"`, or a `"properties"` wrapper at the top level. |
-| **Create initiative parameter** dialog shows red **"Invalid JSON"** under Allowed Values or Default Value | The Allowed Values / Default Value boxes are JSON editors, but you typed free-text (e.g. `Audit` or `[Audit, Deny, Disabled]`) | Wrap strings in double quotes and arrays in square brackets: Allowed Values = `["Audit", "Deny", "Disabled"]`, Default Value = `"Audit"`. For empty arrays the default is `[]`. |
+| **Create initiative parameter** dialog shows red **"Invalid JSON"** under Allowed Values | The Allowed Values box is a JSON editor, but you typed free-text (e.g. `Audit, Deny, Disabled` or `[Audit, Deny, Disabled]`) | Wrap strings in double quotes and arrays in square brackets: `["Audit", "Deny", "Disabled"]`. Note: for **String**-typed parameters the **Default Value** is a plain text input (type `Audit`, no quotes); for **Array**-typed parameters Default Value is also JSON (`[]`). |
 | `effect` parameter saved as Array and the assignment shows a list editor instead of a dropdown | Type was left at the dialog's default (Array) instead of being switched to String | Re-open **Initiative parameters → effect → Edit**, change **Type** to **String**, set Allowed Values to `["Audit", "Deny", "Disabled"]` and Default Value to `"Audit"`, save. |
 | Initiative creation fails: "Policy definition not found" | Initiative JSON's `policyDefinitionId` still has `<SUBSCRIPTION_ID>` placeholder, or it references definition names that don't exist | Use **Path A (UI-driven)** in [Step 3](#step-3--create-the-initiative-bundle-both-definitions). It picks the definitions from the catalog and avoids the issue entirely. |
 | Assignment created but deployment still succeeds | Tested before 2–5 minute propagation, OR the assignment scope is below the resource being created (e.g. assigned to a different RG) | Wait 5 minutes. Verify scope in **Policy → Assignments → \<assignment\> → Overview**. Re-test. |
