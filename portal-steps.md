@@ -50,12 +50,61 @@ You are loading a custom definition into the subscription's policy library. Noth
 4. Click **+ Policy definition** on the toolbar.
 5. Fill in the **Policy definition** blade:
    - **Definition location**: click the blue **…** picker → choose your test subscription → **Select**. (This is the scope where the definition will live. It must be the same subscription where you'll assign it.)
-   - **Name**: `Deny Cognitive Services model deployments not in the approved list` (must match the `displayName` from the JSON so the initiative picks it up by name in Step 3).
-   - **Description**: copy the `properties.description` string from [policies/deny-cogsvc-model-deployments.json](policies/deny-cogsvc-model-deployments.json).
+   - **Name**: paste exactly:
+     ```
+     Deny Cognitive Services model deployments not in the approved list
+     ```
+     (Must match the `displayName` in the JSON so the initiative picks it up by name in Step 3.)
+   - **Description**: paste exactly:
+     ```
+     Denies creation or update of Azure Cognitive Services / Azure OpenAI / Azure AI Foundry model deployments (Microsoft.CognitiveServices/accounts/deployments) unless the model identifier <format>/<name> is present in the allowedModels parameter. An empty allowedModels array denies every model — this is the default blanket-deny posture.
+     ```
    - **Category**: select **Create new** → enter `AI Governance`.
-6. In the **POLICY RULE** JSON editor (the big code box at the bottom), select all the placeholder content and delete it. Then paste the **inner content of the `properties` object** from [policies/deny-cogsvc-model-deployments.json](policies/deny-cogsvc-model-deployments.json) — that is, everything from the opening `{` after `"properties":` through its matching closing `}`. The pasted JSON should start with `"displayName": "Deny ..."` and contain `mode`, `parameters`, `policyRule`. Wrap it in `{ ... }` so the editor sees a valid JSON object.
+6. In the **POLICY RULE** JSON editor (the big code box at the bottom), select all the placeholder content and delete it, then paste the block below **exactly as-is**:
 
-   > Quick sanity check: the first key in the editor should be `"displayName"` and the last should be `"policyRule"`. If you see `"name"` at the top, you pasted the outer wrapper too — remove the `"name": "..."` line and the surrounding `"properties": { ... }` braces.
+   ```json
+   {
+     "mode": "All",
+     "parameters": {
+       "effect": {
+         "type": "String",
+         "metadata": {
+           "displayName": "Effect",
+           "description": "Use Audit during rollout soak, Deny in steady state. Defaults to Audit so an accidental assignment never silently black-holes deployments."
+         },
+         "allowedValues": [ "Audit", "Deny", "Disabled" ],
+         "defaultValue": "Audit"
+       },
+       "allowedModels": {
+         "type": "Array",
+         "metadata": {
+           "displayName": "Allowed models",
+           "description": "Array of approved models in the form '<format>/<name>', e.g. ['OpenAI/gpt-4o','OpenAI/text-embedding-3-large']. Empty array means all models are denied."
+         },
+         "defaultValue": []
+       }
+     },
+     "policyRule": {
+       "if": {
+         "allOf": [
+           {
+             "field": "type",
+             "equals": "Microsoft.CognitiveServices/accounts/deployments"
+           },
+           {
+             "value": "[concat(field('Microsoft.CognitiveServices/accounts/deployments/model.format'), '/', field('Microsoft.CognitiveServices/accounts/deployments/model.name'))]",
+             "notIn": "[parameters('allowedModels')]"
+           }
+         ]
+       },
+       "then": {
+         "effect": "[parameters('effect')]"
+       }
+     }
+   }
+   ```
+
+   > Sanity check: the JSON should start with `"mode"` and end with the closing `"effect": "[parameters('effect')]"` block. Do **not** include a `"name"`, `"displayName"`, or outer `"properties": { ... }` wrapper — those are set by the form fields above.
 7. Click **Save** (bottom of the blade).
 8. The new definition opens — copy its **Definition ID** (top right, under the name) into a scratchpad. You will need it in Step 3.
    - The ID looks like `/subscriptions/<sub-guid>/providers/Microsoft.Authorization/policyDefinitions/<guid-or-name>`.
@@ -64,15 +113,64 @@ You are loading a custom definition into the subscription's policy library. Noth
 
 ## Step 2 — Create the second policy definition (Azure ML / Foundry serverless endpoints)
 
-Repeat Step 1 with the second JSON file.
+Repeat Step 1's flow with the second policy.
 
 1. **Policy → Definitions → + Policy definition**.
 2. **Definition location**: same test subscription.
-3. **Name**: `Deny Azure ML / Foundry serverless endpoints not in the approved list`.
-4. **Description**: copy from [policies/deny-mlw-serverless-endpoints.json](policies/deny-mlw-serverless-endpoints.json).
+3. **Name**: paste exactly:
+   ```
+   Deny Azure ML / Foundry serverless endpoints not in the approved list
+   ```
+4. **Description**: paste exactly:
+   ```
+   Denies creation or update of Azure Machine Learning / Azure AI Foundry pay-as-you-go (serverless) model endpoints (Microsoft.MachineLearningServices/workspaces/serverlessEndpoints) unless the offer '<publisher>/<offerName>' is present in the allowedModels parameter. An empty allowedModels array denies every offer — this is the default blanket-deny posture.
+   ```
 5. **Category**: select **Use existing** → `AI Governance`.
-6. **POLICY RULE**: paste the inner content of `properties` from [policies/deny-mlw-serverless-endpoints.json](policies/deny-mlw-serverless-endpoints.json), wrapped in `{ ... }`.
-7. **Save**.
+6. **POLICY RULE** editor — clear it and paste exactly:
+
+   ```json
+   {
+     "mode": "All",
+     "parameters": {
+       "effect": {
+         "type": "String",
+         "metadata": {
+           "displayName": "Effect",
+           "description": "Use Audit during rollout soak, Deny in steady state. Defaults to Audit so an accidental assignment never silently black-holes deployments."
+         },
+         "allowedValues": [ "Audit", "Deny", "Disabled" ],
+         "defaultValue": "Audit"
+       },
+       "allowedModels": {
+         "type": "Array",
+         "metadata": {
+           "displayName": "Allowed serverless offers",
+           "description": "Array of approved offers in the form '<publisher>/<offerName>', e.g. ['Meta/Llama-3.1-8B-Instruct']. Empty array means all offers are denied."
+         },
+         "defaultValue": []
+       }
+     },
+     "policyRule": {
+       "if": {
+         "allOf": [
+           {
+             "field": "type",
+             "equals": "Microsoft.MachineLearningServices/workspaces/serverlessEndpoints"
+           },
+           {
+             "value": "[concat(field('Microsoft.MachineLearningServices/workspaces/serverlessEndpoints/offer.publisher'), '/', field('Microsoft.MachineLearningServices/workspaces/serverlessEndpoints/offer.offerName'))]",
+             "notIn": "[parameters('allowedModels')]"
+           }
+         ]
+       },
+       "then": {
+         "effect": "[parameters('effect')]"
+       }
+     }
+   }
+   ```
+
+7. Click **Save**.
 8. Copy this second definition's **Definition ID** into the same scratchpad.
 
 You now have two custom definitions and two Definition IDs.
@@ -89,7 +187,10 @@ The portal lets you build an initiative two ways. Use **Path A (UI-driven)** —
 2. **Basics** tab:
    - **Definition location**: your test subscription.
    - **Name**: `AI Model Governance` (this becomes the display name).
-   - **Description**: copy from [policies/initiative-ai-model-governance.json](policies/initiative-ai-model-governance.json) (`properties.description`).
+   - **Description**: paste exactly:
+     ```
+     Phase 0 initiative: blanket Deny on all AI model deployments in the scope it is assigned to, with a per-assignment, per-model approval allowlist. Bundles Cognitive Services model deployments and Azure ML/Foundry serverless endpoints into one assignable unit.
+     ```
    - **Category**: **Use existing** → `AI Governance`.
    - **Initiative version (preview)**: leave blank or `1.0.0`.
 3. **Policies** tab → **+ Add policy definition(s)**:
@@ -240,9 +341,64 @@ Optional: also delete the Azure OpenAI account before the RG if soft-delete is e
 
 ## Optional — Apply the stricter account-kinds policy
 
-By default Phase 0 lets people *create* an empty Azure OpenAI / AI Foundry account; only model deployments are blocked. To also block account creation itself, deploy [policies/deny-cogsvc-account-kinds.json](policies/deny-cogsvc-account-kinds.json) as a standalone definition + assignment.
+By default Phase 0 lets people *create* an empty Azure OpenAI / AI Foundry account; only model deployments are blocked. To also block account creation itself, deploy a standalone definition + assignment for the stricter `deny-cogsvc-account-kinds` policy.
 
-1. **Policy → Definitions → + Policy definition** — repeat Step 1's flow with [policies/deny-cogsvc-account-kinds.json](policies/deny-cogsvc-account-kinds.json).
+1. **Policy → Definitions → + Policy definition** — repeat Step 1's flow with these values:
+   - **Definition location**: your test subscription.
+   - **Name**: paste exactly:
+     ```
+     Deny Cognitive Services accounts whose kind is not in the approved list
+     ```
+   - **Description**: paste exactly:
+     ```
+     Optional, stricter-mode policy. Blocks creation of Microsoft.CognitiveServices/accounts whose 'kind' is not present in the allowedKinds parameter. Empty array denies every kind. Not included in the default ai-model-governance initiative because Cognitive Services covers more than generative AI (Speech, Vision, Translator, ...). Assign this only if your organization wants to gate the parent account, not just the model deployment, and provide an explicit allowedKinds list for any non-GenAI workloads you still permit.
+     ```
+   - **Category**: **Use existing** → `AI Governance`.
+   - **POLICY RULE** — clear the editor and paste exactly:
+
+     ```json
+     {
+       "mode": "All",
+       "parameters": {
+         "effect": {
+           "type": "String",
+           "metadata": {
+             "displayName": "Effect",
+             "description": "Use Audit during rollout soak, Deny in steady state. Defaults to Audit so an accidental assignment never silently black-holes account creation."
+           },
+           "allowedValues": [ "Audit", "Deny", "Disabled" ],
+           "defaultValue": "Audit"
+         },
+         "allowedKinds": {
+           "type": "Array",
+           "metadata": {
+             "displayName": "Allowed Cognitive Services account kinds",
+             "description": "Array of approved values for Microsoft.CognitiveServices/accounts.kind, e.g. ['SpeechServices','ComputerVision']. Empty array denies every kind. Note: 'OpenAI' and 'AIServices' are the generative-AI kinds; omit them to keep the per-model allowlist as the only path to GenAI."
+           },
+           "defaultValue": []
+         }
+       },
+       "policyRule": {
+         "if": {
+           "allOf": [
+             {
+               "field": "type",
+               "equals": "Microsoft.CognitiveServices/accounts"
+             },
+             {
+               "field": "kind",
+               "notIn": "[parameters('allowedKinds')]"
+             }
+           ]
+         },
+         "then": {
+           "effect": "[parameters('effect')]"
+         }
+       }
+     }
+     ```
+
+   - Click **Save**.
 2. **Policy → Assignments → Assign policy** (not *initiative* — this is a single definition):
    - **Scope** = test subscription.
    - **Policy definition** = `Deny Cognitive Services accounts whose kind is not in the approved list`.
@@ -261,7 +417,7 @@ Heads-up: this is **stricter** and breaks any team currently standing up a Cogni
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | **+ Policy definition** isn't available / greyed out | Your account doesn't have `Microsoft.Authorization/policyDefinitions/write` at the scope | Check **Subscriptions → \<sub\> → Access control (IAM) → My access**. You need Owner, Resource Policy Contributor, or equivalent. |
-| Pasting JSON into the policy rule editor fails with "Invalid JSON" | You pasted the outer `{ "name": ..., "properties": { ... } }` wrapper | Paste only the **inner content of `properties`**, wrapped in a single `{ ... }`. The first key should be `"displayName"` or `"mode"`, not `"name"`. |
+| Pasting JSON into the policy rule editor fails with "Invalid JSON" | You pasted the outer `{ "name": ..., "properties": { ... } }` wrapper, or your paste lost a trailing brace | Paste only the block shown in the step — the first key must be `"mode"` and the last closing brace must match the first opening brace. Do **not** include `"name"`, `"displayName"`, `"description"`, `"metadata"`, or a `"properties"` wrapper at the top level. |
 | Initiative creation fails: "Policy definition not found" | Initiative JSON's `policyDefinitionId` still has `<SUBSCRIPTION_ID>` placeholder, or it references definition names that don't exist | Use **Path A (UI-driven)** in [Step 3](#step-3--create-the-initiative-bundle-both-definitions). It picks the definitions from the catalog and avoids the issue entirely. |
 | Assignment created but deployment still succeeds | Tested before 2–5 minute propagation, OR the assignment scope is below the resource being created (e.g. assigned to a different RG) | Wait 5 minutes. Verify scope in **Policy → Assignments → \<assignment\> → Overview**. Re-test. |
 | Deployment still fails with `RequestDisallowedByPolicy` after you approved the model | Allowlist string doesn't match the model identifier exactly | Compare the value in the assignment's `allowedCognitiveServicesModels` to the format `<format>/<name>` — `OpenAI/gpt-4o`, **not** `openai/gpt-4o`, `OpenAI/GPT-4o`, or `gpt-4o`. Case- and slash-sensitive. |
