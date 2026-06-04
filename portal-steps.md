@@ -243,15 +243,20 @@ The portal lets you build an initiative two ways. Use **Path A (UI-driven)** —
      []
      ```
    - Click **Save**.
-6. **Policy parameters** tab — wire the initiative parameters down to each member policy:
+6. **Policy parameters** tab — wire each member policy's parameter to the matching initiative parameter you just created.
 
-   Row 1 — `Deny Cognitive Services model deployments...`:
-   - `effect` → **Value type** = Initiative parameter → choose `effect`.
-   - `allowedModels` → **Value type** = Initiative parameter → choose `allowedCognitiveServicesModels`.
+   You'll see four rows (two parameters per member policy). For each row, click the **Value Type** dropdown and pick the matching initiative parameter from the list. (The dropdown only shows initiative parameters whose **Type** matches the row's Type — so the String row sees `effect`, the Array rows see the two array params.)
 
-   Row 2 — `Deny Azure ML / Foundry serverless endpoints...`:
-   - `effect` → Initiative parameter → `effect`.
-   - `allowedModels` → Initiative parameter → `allowedServerlessOffers`.
+   | Reference ID                  | Parameter name             | Type   | Value Type (pick from dropdown)    |
+   | ----------------------------- | -------------------------- | ------ | ---------------------------------- |
+   | `denyCogSvcModelDeployments`  | Effect                     | String | `effect`                           |
+   | `denyCogSvcModelDeployments`  | Allowed models             | Array  | `allowedCognitiveServicesModels`   |
+   | `denyMlwServerlessEndpoints`  | Effect                     | String | `effect`                           |
+   | `denyMlwServerlessEndpoints`  | Allowed serverless offers  | Array  | `allowedServerlessOffers`          |
+
+   > If a row's **Value Type** dropdown only shows **Default Value** (no initiative parameter to pick), it means you didn't create the matching initiative parameter in step 5 — go back to the **Initiative parameters** tab and add it, then return here.
+
+   The **Value(s)** column on the right turns into a non-editable label like *"Set in assignment"* once you wire a row to an initiative parameter — that's expected. Actual values will be supplied at assignment time in [Step 4](#step-4--assign-the-initiative-to-the-subscription-with-an-empty-allowlist--deny-all).
 7. **Review + create** → confirm the summary → **Create**.
 
 ### Path B — paste the initiative JSON (alternative)
@@ -455,8 +460,7 @@ Heads-up: this is **stricter** and breaks any team currently standing up a Cogni
 | **+ Policy definition** isn't available / greyed out | Your account doesn't have `Microsoft.Authorization/policyDefinitions/write` at the scope | Check **Subscriptions → \<sub\> → Access control (IAM) → My access**. You need Owner, Resource Policy Contributor, or equivalent. |
 | Pasting JSON into the policy rule editor fails with "Invalid JSON" | You pasted the outer `{ "name": ..., "properties": { ... } }` wrapper, or your paste lost a trailing brace | Paste only the block shown in the step — the first key must be `"mode"` and the last closing brace must match the first opening brace. Do **not** include `"name"`, `"displayName"`, `"description"`, `"metadata"`, or a `"properties"` wrapper at the top level. |
 | **Create initiative parameter** dialog shows red **"Invalid JSON"** under Allowed Values | The Allowed Values box is a JSON editor, but you typed free-text (e.g. `Audit, Deny, Disabled` or `[Audit, Deny, Disabled]`) | Wrap strings in double quotes and arrays in square brackets: `["Audit", "Deny", "Disabled"]`. Note: for **String**-typed parameters the **Default Value** is a plain text input (type `Audit`, no quotes); for **Array**-typed parameters Default Value is also JSON (`[]`). |
-| `effect` parameter saved as Array and the assignment shows a list editor instead of a dropdown | Type was left at the dialog's default (Array) instead of being switched to String | Re-open **Initiative parameters → effect → Edit**, change **Type** to **String**, set Allowed Values to `["Audit", "Deny", "Disabled"]` and Default Value to `"Audit"`, save. |
-| Initiative creation fails: "Policy definition not found" | Initiative JSON's `policyDefinitionId` still has `<SUBSCRIPTION_ID>` placeholder, or it references definition names that don't exist | Use **Path A (UI-driven)** in [Step 3](#step-3--create-the-initiative-bundle-both-definitions). It picks the definitions from the catalog and avoids the issue entirely. |
+| `effect` parameter saved as Array and the assignment shows a list editor instead of a dropdown | Type was left at the dialog's default (Array) instead of being switched to String | Re-open **Initiative parameters → effect → Edit**, change **Type** to **String**, set Allowed Values to `["Audit", "Deny", "Disabled"]` and Default Value to `"Audit"`, save. || **Policy parameters** tab — **Value Type** dropdown for a row only shows `Default Value`, no initiative parameter to choose | You haven't created an initiative parameter of the right Type yet, or the Type doesn't match (e.g. row is Array, but you only have a String initiative parameter) | Go back to **Initiative parameters → + Add initiative parameter** and add the missing one with the correct Type. The dropdown filters to only show initiative parameters whose Type matches the row's Type. || Initiative creation fails: "Policy definition not found" | Initiative JSON's `policyDefinitionId` still has `<SUBSCRIPTION_ID>` placeholder, or it references definition names that don't exist | Use **Path A (UI-driven)** in [Step 3](#step-3--create-the-initiative-bundle-both-definitions). It picks the definitions from the catalog and avoids the issue entirely. |
 | Assignment created but deployment still succeeds | Tested before 2–5 minute propagation, OR the assignment scope is below the resource being created (e.g. assigned to a different RG) | Wait 5 minutes. Verify scope in **Policy → Assignments → \<assignment\> → Overview**. Re-test. |
 | Deployment still fails with `RequestDisallowedByPolicy` after you approved the model | Allowlist string doesn't match the model identifier exactly | Compare the value in the assignment's `allowedCognitiveServicesModels` to the format `<format>/<name>` — `OpenAI/gpt-4o`, **not** `openai/gpt-4o`, `OpenAI/GPT-4o`, or `gpt-4o`. Case- and slash-sensitive. |
 | Two policy definitions with the same display name appear in the catalog | You saved the same definition twice | Delete duplicates from **Policy → Definitions** (filter **Type = Custom**). Recreate the initiative if it now points at the wrong one. |
