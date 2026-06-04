@@ -1,0 +1,302 @@
+# Portal Steps — Phase 0 AI Model Governance, end-to-end in the Azure Portal
+
+This walkthrough is the **portal-only** equivalent of [RUNBOOK.md](RUNBOOK.md). Every action is a click in the [Azure portal](https://portal.azure.com) — no PowerShell, no Azure CLI, no `azd`. The JSON files in [policies/](policies/) and [assignments/](assignments/) are used only as **copy-paste sources** for the portal's JSON editors.
+
+Audience: a governance / cloud platform engineer with **Owner** (or equivalent custom role with `Microsoft.Authorization/policyDefinitions/*`, `Microsoft.Authorization/policySetDefinitions/*`, `Microsoft.Authorization/policyAssignments/*`, and `Microsoft.CognitiveServices/*`) on the test subscription.
+
+Time: ~20–30 minutes including the 2 × 5-minute policy-propagation waits.
+
+---
+
+## Table of contents
+
+1. [Prerequisites](#prerequisites)
+2. [Step 1 — Create the first policy definition (Cognitive Services / Azure OpenAI deployments)](#step-1--create-the-first-policy-definition-cognitive-services--azure-openai-deployments)
+3. [Step 2 — Create the second policy definition (Azure ML / Foundry serverless endpoints)](#step-2--create-the-second-policy-definition-azure-ml--foundry-serverless-endpoints)
+4. [Step 3 — Create the initiative (bundle both definitions)](#step-3--create-the-initiative-bundle-both-definitions)
+5. [Step 4 — Assign the initiative to the subscription with an empty allowlist (= deny all)](#step-4--assign-the-initiative-to-the-subscription-with-an-empty-allowlist--deny-all)
+6. [Step 5 — Prove the deny works](#step-5--prove-the-deny-works)
+7. [Step 6 — Approve a single model (gpt-4o)](#step-6--approve-a-single-model-gpt-4o)
+8. [Step 7 — Re-test: gpt-4o succeeds, everything else still denied](#step-7--re-test-gpt-4o-succeeds-everything-else-still-denied)
+9. [Step 8 — Kill switch (Effect = Disabled)](#step-8--kill-switch-effect--disabled)
+10. [Step 9 — Cleanup](#step-9--cleanup)
+11. [Optional — Apply the stricter account-kinds policy](#optional--apply-the-stricter-account-kinds-policy)
+12. [Troubleshooting (portal)](#troubleshooting-portal)
+13. [Two portal quirks worth knowing up front](#two-portal-quirks-worth-knowing-up-front)
+
+---
+
+## Prerequisites
+
+1. An empty Azure subscription you can experiment in — no production workloads.
+2. **Owner** role on that subscription. Check at **Subscriptions → \<your sub\> → Access control (IAM) → Role assignments → your account**.
+3. A browser signed in to the right tenant. Verify the tenant in the top-right of the portal (your account avatar → directory name).
+4. The JSON files in this repo open in a text editor so you can copy from them. Files you will paste from:
+   - [policies/deny-cogsvc-model-deployments.json](policies/deny-cogsvc-model-deployments.json)
+   - [policies/deny-mlw-serverless-endpoints.json](policies/deny-mlw-serverless-endpoints.json)
+   - [policies/initiative-ai-model-governance.json](policies/initiative-ai-model-governance.json)
+
+Read [Two portal quirks worth knowing up front](#two-portal-quirks-worth-knowing-up-front) **before** Step 1 — it will save you a re-do on the initiative step.
+
+---
+
+## Step 1 — Create the first policy definition (Cognitive Services / Azure OpenAI deployments)
+
+You are loading a custom definition into the subscription's policy library. Nothing is enforced yet — assignment is Step 4.
+
+1. In the portal's top search bar type **Policy** → click **Policy** (the shield icon).
+2. Left nav → **Authoring** → **Definitions**.
+3. Confirm scope. At the top of the Definitions blade there is a **Scope** picker — set it to your test subscription only (clear any management group selections).
+4. Click **+ Policy definition** on the toolbar.
+5. Fill in the **Policy definition** blade:
+   - **Definition location**: click the blue **…** picker → choose your test subscription → **Select**. (This is the scope where the definition will live. It must be the same subscription where you'll assign it.)
+   - **Name**: `Deny Cognitive Services model deployments not in the approved list` (must match the `displayName` from the JSON so the initiative picks it up by name in Step 3).
+   - **Description**: copy the `properties.description` string from [policies/deny-cogsvc-model-deployments.json](policies/deny-cogsvc-model-deployments.json).
+   - **Category**: select **Create new** → enter `AI Governance`.
+6. In the **POLICY RULE** JSON editor (the big code box at the bottom), select all the placeholder content and delete it. Then paste the **inner content of the `properties` object** from [policies/deny-cogsvc-model-deployments.json](policies/deny-cogsvc-model-deployments.json) — that is, everything from the opening `{` after `"properties":` through its matching closing `}`. The pasted JSON should start with `"displayName": "Deny ..."` and contain `mode`, `parameters`, `policyRule`. Wrap it in `{ ... }` so the editor sees a valid JSON object.
+
+   > Quick sanity check: the first key in the editor should be `"displayName"` and the last should be `"policyRule"`. If you see `"name"` at the top, you pasted the outer wrapper too — remove the `"name": "..."` line and the surrounding `"properties": { ... }` braces.
+7. Click **Save** (bottom of the blade).
+8. The new definition opens — copy its **Definition ID** (top right, under the name) into a scratchpad. You will need it in Step 3.
+   - The ID looks like `/subscriptions/<sub-guid>/providers/Microsoft.Authorization/policyDefinitions/<guid-or-name>`.
+
+---
+
+## Step 2 — Create the second policy definition (Azure ML / Foundry serverless endpoints)
+
+Repeat Step 1 with the second JSON file.
+
+1. **Policy → Definitions → + Policy definition**.
+2. **Definition location**: same test subscription.
+3. **Name**: `Deny Azure ML / Foundry serverless endpoints not in the approved list`.
+4. **Description**: copy from [policies/deny-mlw-serverless-endpoints.json](policies/deny-mlw-serverless-endpoints.json).
+5. **Category**: select **Use existing** → `AI Governance`.
+6. **POLICY RULE**: paste the inner content of `properties` from [policies/deny-mlw-serverless-endpoints.json](policies/deny-mlw-serverless-endpoints.json), wrapped in `{ ... }`.
+7. **Save**.
+8. Copy this second definition's **Definition ID** into the same scratchpad.
+
+You now have two custom definitions and two Definition IDs.
+
+---
+
+## Step 3 — Create the initiative (bundle both definitions)
+
+The portal lets you build an initiative two ways. Use **Path A (UI-driven)** — it sidesteps the `<SUBSCRIPTION_ID>` placeholder issue in the initiative JSON. Path B (paste JSON) is included as an alternative.
+
+### Path A — UI-driven (recommended)
+
+1. **Policy → Definitions → + Initiative definition**.
+2. **Basics** tab:
+   - **Definition location**: your test subscription.
+   - **Name**: `AI Model Governance` (this becomes the display name).
+   - **Description**: copy from [policies/initiative-ai-model-governance.json](policies/initiative-ai-model-governance.json) (`properties.description`).
+   - **Category**: **Use existing** → `AI Governance`.
+   - **Initiative version (preview)**: leave blank or `1.0.0`.
+3. **Policies** tab → **+ Add policy definition(s)**:
+   - In the right-hand pane, set the **Type** filter to **Custom**.
+   - Tick the two definitions you created in Steps 1 and 2.
+   - Click **Add** at the bottom.
+4. Back on the **Policies** tab, click the first definition (`Deny Cognitive Services model deployments...`) → **Edit reference ID** → set to `denyCogSvcModelDeployments`. Click the second → set its reference ID to `denyMlwServerlessEndpoints`. (These names match the initiative JSON; they're optional but keep things tidy.)
+5. **Initiative parameters** tab → **+ Add initiative parameter**. Add three parameters — one row each:
+
+   | Name                              | Type   | Display name                                         | Allowed values            | Default value |
+   | --------------------------------- | ------ | ---------------------------------------------------- | ------------------------- | ------------- |
+   | `effect`                          | String | Effect (applies to all member policies)              | Audit, Deny, Disabled     | `Audit`       |
+   | `allowedCognitiveServicesModels`  | Array  | Allowed Cognitive Services / Azure OpenAI models     | *(leave blank)*           | `[]`          |
+   | `allowedServerlessOffers`         | Array  | Allowed serverless (MaaS) offers                     | *(leave blank)*           | `[]`          |
+
+   For Array parameters, use the **Strongly typed** option if shown, otherwise free-text — the empty default is `[]`.
+6. **Policy parameters** tab — wire the initiative parameters down to each member policy:
+
+   Row 1 — `Deny Cognitive Services model deployments...`:
+   - `effect` → **Value type** = Initiative parameter → choose `effect`.
+   - `allowedModels` → **Value type** = Initiative parameter → choose `allowedCognitiveServicesModels`.
+
+   Row 2 — `Deny Azure ML / Foundry serverless endpoints...`:
+   - `effect` → Initiative parameter → `effect`.
+   - `allowedModels` → Initiative parameter → `allowedServerlessOffers`.
+7. **Review + create** → confirm the summary → **Create**.
+
+### Path B — paste the initiative JSON (alternative)
+
+Use this only if you prefer JSON. You must edit the JSON first.
+
+1. In a text editor open [policies/initiative-ai-model-governance.json](policies/initiative-ai-model-governance.json).
+2. Find both occurrences of the string `<SUBSCRIPTION_ID>` and replace each with your test subscription's GUID (Subscriptions blade → your sub → copy **Subscription ID**).
+3. If your Step 1/Step 2 definitions got auto-assigned GUID resource names (see [Two portal quirks](#two-portal-quirks-worth-knowing-up-front)), also replace the two definition names in the `policyDefinitionId` values with the GUIDs you copied in Steps 1 and 2 — i.e. swap `deny-cognitive-services-model-deployments` and `deny-ml-serverless-endpoints` for the actual definition names visible in the portal.
+4. **Policy → Definitions → + Initiative definition → Basics**: set Definition location and a name.
+5. Skip the Policies / Parameters tabs.
+6. **Review + create** offers no JSON paste box — Path B is only viable via the **ARM template** path (**Templates** in the portal → deploy as an ARM template containing the initiative JSON). For most users, **Path A is simpler and is the recommended approach.**
+
+---
+
+## Step 4 — Assign the initiative to the subscription with an empty allowlist (= deny all)
+
+This is the moment enforcement begins.
+
+1. **Policy → Assignments → Assign initiative** (toolbar dropdown next to **Assign policy**).
+2. **Basics** tab:
+   - **Scope**: click the **…** picker → set **Subscription** = your test subscription → leave **Resource Group** blank → **Select**.
+   - **Exclusions**: none.
+   - **Initiative definition**: click the **…** picker → filter **Type = Custom** → choose **AI Model Governance** → **Select**.
+   - **Assignment name**: clear the auto-filled value and set it to exactly `ai-model-governance`. (This name is what scripts later look up — keep it stable.)
+   - **Display name**: `AI Model Governance — baseline deny`.
+   - **Description**: `Phase 0 baseline assignment for the test subscription. Empty allowlists = blanket deny of every AI model deployment and every MaaS offer.`
+   - **Policy enforcement**: **Enabled**.
+3. **Parameters** tab — **uncheck** *Only show parameters that need input* to see all three:
+   - **Effect (applies to all member policies)** = `Deny`.
+   - **Allowed Cognitive Services / Azure OpenAI models** = leave the list **empty** (do not add any rows).
+   - **Allowed serverless (MaaS) offers** = leave **empty**.
+4. **Remediation** tab — leave defaults (no managed identity, no remediation task — Deny doesn't need them).
+5. **Non-compliance messages** tab — add one message:
+   - **Policy definition** = *All Member Definitions*
+   - **Message** = `AI model deployments are blocked by the AI Model Governance policy. Submit a model-approval ticket; once approved, this subscription's allowlist will be updated.`
+6. **Review + create** → confirm summary → **Create**.
+
+**Wait 2–5 minutes** before testing. Policy assignments take up to 30 minutes globally but typically propagate within 5 in a fresh subscription.
+
+---
+
+## Step 5 — Prove the deny works
+
+1. **Create a resource → AI + Machine Learning → Azure OpenAI → Create**.
+2. **Basics**:
+   - **Subscription** = test subscription.
+   - **Resource group** = **Create new** → `rg-aipolicy-test`.
+   - **Region** = `East US` (or any region with capacity).
+   - **Name** = `aoai-test-<your-initials>`.
+   - **Pricing tier** = `Standard S0`.
+3. **Network → All networks**. **Tags →** skip. **Review + submit → Create**.
+4. Wait for "Your deployment is complete" → **Go to resource**.
+5. Left nav → **Resource Management → Model deployments** → **Manage Deployments** (this opens Azure AI Foundry).
+6. In Azure AI Foundry's Deployments view → **+ Deploy model → Deploy base model**.
+7. Pick **gpt-4o-mini** (any model — doesn't matter which) → **Confirm** → **Deploy**.
+8. **Expected result**: the deployment fails almost immediately with **`RequestDisallowedByPolicy`**. Expand the error — it cites the assignment **AI Model Governance — baseline deny** and the member policy **Deny Cognitive Services model deployments...**.
+
+> If the deployment **succeeds**, jump to [Troubleshooting](#troubleshooting-portal) — the most common cause is "I tested before 5 minutes had passed".
+
+---
+
+## Step 6 — Approve a single model (gpt-4o)
+
+Simulates the AI Governance Board approving exactly one model for this subscription.
+
+1. **Policy → Assignments**.
+2. Set scope at the top to your test subscription.
+3. Click **AI Model Governance — baseline deny**.
+4. Toolbar → **Edit assignment**.
+5. **Parameters** tab → uncheck *Only show parameters that need input* if needed.
+6. Under **Allowed Cognitive Services / Azure OpenAI models** click **+ Add new value** (or **+** icon) and type exactly:
+   ```
+   OpenAI/gpt-4o
+   ```
+   - **Case-sensitive.** `openai/gpt-4o` will NOT match. `gpt-4o` alone will NOT match. The format is `<format>/<name>` and for Azure OpenAI the format is always `OpenAI`.
+7. Leave **Allowed serverless (MaaS) offers** empty.
+8. Optionally update **Display name** to `AI Model Governance — gpt-4o approved` (matches [assignments/sub-test-after-gpt4o-approval.json](assignments/sub-test-after-gpt4o-approval.json)) and the non-compliance message to *"Only the AI models on this subscription's approved list may be deployed. Submit a model-approval ticket to add another model."*
+9. **Review + save → Save**.
+
+**Wait 2–5 minutes** for the new allowlist to propagate.
+
+---
+
+## Step 7 — Re-test: gpt-4o succeeds, everything else still denied
+
+Back in Azure AI Foundry (the **Model deployments** view of your Azure OpenAI account):
+
+1. **+ Deploy model → Deploy base model → gpt-4o → Confirm → Deploy.**
+   - **Expected:** Succeeds. The deployment shows as **Succeeded** within ~30 s.
+2. **+ Deploy model → Deploy base model → gpt-4o-mini → Confirm → Deploy.**
+   - **Expected:** Fails with **`RequestDisallowedByPolicy`**, citing the same assignment.
+
+This pair (one allowed, one denied, same account, same operator) is the **definitive Phase 0 acceptance test**.
+
+---
+
+## Step 8 — Kill switch (Effect = Disabled)
+
+Rehearse turning enforcement off without deleting the assignment. You want this muscle memory **before** you need it during an incident.
+
+1. **Policy → Assignments → AI Model Governance — baseline deny → Edit assignment → Parameters**.
+2. **Effect** dropdown → `Disabled` → **Review + save → Save**.
+3. Wait ~2–5 minutes.
+4. Back in Azure AI Foundry → **+ Deploy model → gpt-4o-mini → Deploy**.
+   - **Expected:** Succeeds (enforcement is off).
+5. Re-open the assignment → set **Effect** back to `Deny` → **Save**. Enforcement resumes after ~2–5 minutes.
+
+---
+
+## Step 9 — Cleanup
+
+Removes everything you created, in the right order (assignments first, then initiative, then definitions, then the test resource group).
+
+1. **Policy → Assignments** → click **AI Model Governance — baseline deny** → toolbar → **Delete assignment** → confirm.
+2. **Policy → Definitions** → set filter **Definition type = Initiative** → click **AI Model Governance** → toolbar → **Delete definition** → confirm.
+3. **Policy → Definitions** → set filter **Definition type = Policy**, **Type = Custom** → delete the two definitions you created in Steps 1 and 2.
+4. **Resource groups → rg-aipolicy-test → Delete resource group** → type the RG name to confirm → **Delete**.
+
+Optional: also delete the Azure OpenAI account before the RG if soft-delete is enabled and you want the name freed up immediately (Azure OpenAI account → **Overview → Delete → confirm "Purge"**).
+
+---
+
+## Optional — Apply the stricter account-kinds policy
+
+By default Phase 0 lets people *create* an empty Azure OpenAI / AI Foundry account; only model deployments are blocked. To also block account creation itself, deploy [policies/deny-cogsvc-account-kinds.json](policies/deny-cogsvc-account-kinds.json) as a standalone definition + assignment.
+
+1. **Policy → Definitions → + Policy definition** — repeat Step 1's flow with [policies/deny-cogsvc-account-kinds.json](policies/deny-cogsvc-account-kinds.json).
+2. **Policy → Assignments → Assign policy** (not *initiative* — this is a single definition):
+   - **Scope** = test subscription.
+   - **Policy definition** = `Deny Cognitive Services accounts whose kind is not in the approved list`.
+   - **Parameters**:
+     - **Effect** = `Deny`.
+     - **Allowed Cognitive Services account kinds** = list any non-GenAI kinds your org legitimately uses (e.g. `SpeechServices`, `ComputerVision`). To block *all* Cognitive Services account creation including Speech / Vision / Translator, leave empty.
+   - **Non-compliance message**: e.g. *"Cognitive Services account creation is restricted. Request an approved kind via your governance process."*
+3. **Review + create → Create.**
+
+Heads-up: this is **stricter** and breaks any team currently standing up a Cognitive Services workspace. Communicate before you assign.
+
+---
+
+## Troubleshooting (portal)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| **+ Policy definition** isn't available / greyed out | Your account doesn't have `Microsoft.Authorization/policyDefinitions/write` at the scope | Check **Subscriptions → \<sub\> → Access control (IAM) → My access**. You need Owner, Resource Policy Contributor, or equivalent. |
+| Pasting JSON into the policy rule editor fails with "Invalid JSON" | You pasted the outer `{ "name": ..., "properties": { ... } }` wrapper | Paste only the **inner content of `properties`**, wrapped in a single `{ ... }`. The first key should be `"displayName"` or `"mode"`, not `"name"`. |
+| Initiative creation fails: "Policy definition not found" | Initiative JSON's `policyDefinitionId` still has `<SUBSCRIPTION_ID>` placeholder, or it references definition names that don't exist | Use **Path A (UI-driven)** in [Step 3](#step-3--create-the-initiative-bundle-both-definitions). It picks the definitions from the catalog and avoids the issue entirely. |
+| Assignment created but deployment still succeeds | Tested before 2–5 minute propagation, OR the assignment scope is below the resource being created (e.g. assigned to a different RG) | Wait 5 minutes. Verify scope in **Policy → Assignments → \<assignment\> → Overview**. Re-test. |
+| Deployment still fails with `RequestDisallowedByPolicy` after you approved the model | Allowlist string doesn't match the model identifier exactly | Compare the value in the assignment's `allowedCognitiveServicesModels` to the format `<format>/<name>` — `OpenAI/gpt-4o`, **not** `openai/gpt-4o`, `OpenAI/GPT-4o`, or `gpt-4o`. Case- and slash-sensitive. |
+| Two policy definitions with the same display name appear in the catalog | You saved the same definition twice | Delete duplicates from **Policy → Definitions** (filter **Type = Custom**). Recreate the initiative if it now points at the wrong one. |
+| You see your assignment under **Compliance** but **Resource compliance** shows 0 resources | Expected — Deny is a **preventative** effect, it doesn't evaluate existing resources for compliance state. Test by trying a new deployment instead. |
+| **Edit assignment** button is missing | You're viewing a built-in or inherited (management-group-scoped) assignment | You can only edit assignments at the scope you have rights to. For Phase 0 everything is at the subscription scope — confirm you opened the right one. |
+
+---
+
+## Two portal quirks worth knowing up front
+
+### 1. The portal does not let you set the resource name of a custom definition
+
+When you create a definition via **+ Policy definition**, the portal's **Name** field sets the **displayName**, and Azure assigns a **GUID** as the underlying resource name. Result: the definition's full ID looks like
+```
+/subscriptions/<sub>/providers/Microsoft.Authorization/policyDefinitions/<some-guid>
+```
+not the friendly name (`deny-cognitive-services-model-deployments`) that the PowerShell-based runbook uses.
+
+**Implication:** the initiative JSON in [policies/initiative-ai-model-governance.json](policies/initiative-ai-model-governance.json) references the definitions by their friendly name. If you paste that JSON directly, the references won't resolve. **That is why [Step 3 Path A](#path-a--ui-driven-recommended) builds the initiative through the UI** — the UI picker resolves definitions by displayName, regardless of the underlying resource name.
+
+If you ever switch to PowerShell or `az` later, those tools *do* honor the `name` field in the JSON, and the friendly names will come back. The two paths are interoperable; you can delete a portal-created definition and recreate it via script without changing anything else.
+
+### 2. The portal's "Allowed values" UI for Array parameters can be fiddly
+
+When you edit the assignment in [Step 6](#step-6--approve-a-single-model-gpt-4o), the **Allowed Cognitive Services / Azure OpenAI models** parameter renders as a list of strings. After typing `OpenAI/gpt-4o` you **must** press **Enter** or click outside the box to commit the row — otherwise the value is dropped silently when you click **Save**. Re-open the assignment after saving and confirm the value persisted.
+
+---
+
+## What this proves (same as the script-based runbook)
+
+Complete Step 7 successfully and you've demonstrated the Phase 0 contract:
+
+1. The initiative denies *all* AI model deployments by default.
+2. A single edit (add one string to the allowlist) approves *one* model, leaving the rest denied.
+3. The kill switch (`Effect = Disabled`) flips enforcement off without losing the configuration.
+
+For the architecture rationale and the Phase 1+ direction, see [design.md](design.md). For the script-driven version of this same workflow, see [RUNBOOK.md](RUNBOOK.md).
