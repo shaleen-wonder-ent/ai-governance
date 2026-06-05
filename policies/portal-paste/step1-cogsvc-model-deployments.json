@@ -1,0 +1,39 @@
+{
+  "mode": "All",
+  "parameters": {
+    "effect": {
+      "type": "String",
+      "metadata": {
+        "displayName": "Effect",
+        "description": "Use Audit during rollout soak, Deny in steady state. Defaults to Audit so an accidental assignment never silently black-holes deployments."
+      },
+      "allowedValues": [ "Audit", "Deny", "Disabled" ],
+      "defaultValue": "Audit"
+    },
+    "allowedModels": {
+      "type": "Array",
+      "metadata": {
+        "displayName": "Allowed models",
+        "description": "Array of approved models in the form '<format>/<name>', e.g. ['OpenAI/gpt-4o','OpenAI/text-embedding-3-large']. Empty array means all models are denied."
+      },
+      "defaultValue": []
+    }
+  },
+  "policyRule": {
+    "if": {
+      "allOf": [
+        {
+          "field": "type",
+          "equals": "Microsoft.CognitiveServices/accounts/deployments"
+        },
+        {
+          "value": "[concat(field('Microsoft.CognitiveServices/accounts/deployments/model.format'), '/', field('Microsoft.CognitiveServices/accounts/deployments/model.name'))]",
+          "notIn": "[parameters('allowedModels')]"
+        }
+      ]
+    },
+    "then": {
+      "effect": "[parameters('effect')]"
+    }
+  }
+}

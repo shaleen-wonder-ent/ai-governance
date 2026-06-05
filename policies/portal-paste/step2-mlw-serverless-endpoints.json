@@ -1,0 +1,39 @@
+{
+  "mode": "All",
+  "parameters": {
+    "effect": {
+      "type": "String",
+      "metadata": {
+        "displayName": "Effect",
+        "description": "Use Audit during rollout soak, Deny in steady state. Defaults to Audit so an accidental assignment never silently black-holes deployments."
+      },
+      "allowedValues": [ "Audit", "Deny", "Disabled" ],
+      "defaultValue": "Audit"
+    },
+    "allowedModels": {
+      "type": "Array",
+      "metadata": {
+        "displayName": "Allowed serverless offers",
+        "description": "Array of approved offers in the form '<publisher>/<offerName>', e.g. ['Meta/Llama-3.1-8B-Instruct']. Empty array means all offers are denied."
+      },
+      "defaultValue": []
+    }
+  },
+  "policyRule": {
+    "if": {
+      "allOf": [
+        {
+          "field": "type",
+          "equals": "Microsoft.MachineLearningServices/workspaces/serverlessEndpoints"
+        },
+        {
+          "value": "[concat(field('Microsoft.MachineLearningServices/workspaces/serverlessEndpoints/offer.publisher'), '/', field('Microsoft.MachineLearningServices/workspaces/serverlessEndpoints/offer.offerName'))]",
+          "notIn": "[parameters('allowedModels')]"
+        }
+      ]
+    },
+    "then": {
+      "effect": "[parameters('effect')]"
+    }
+  }
+}

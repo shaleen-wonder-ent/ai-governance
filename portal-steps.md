@@ -54,7 +54,7 @@ You are loading a custom definition into the subscription's policy library. Noth
      Denies creation or update of Azure Cognitive Services / Azure OpenAI / Azure AI Foundry model deployments (Microsoft.CognitiveServices/accounts/deployments) unless the model identifier <format>/<name> is present in the allowedModels parameter. An empty allowedModels array denies every model — this is the default blanket-deny posture.
      ```
    - **Category**: select **Create new** → enter `AI Governance`.
-6. In the **POLICY RULE** JSON editor (the big code box at the bottom), select all the placeholder content and delete it, then paste the block below **exactly as-is**:
+6. In the **POLICY RULE** JSON editor (the big code box at the bottom), select all the placeholder content and delete it, then paste the block below **exactly as-is**. If GitHub is blocked in your environment, open the local copy [policies/portal-paste/step1-cogsvc-model-deployments.json](policies/portal-paste/step1-cogsvc-model-deployments.json) in Notepad and copy from there — the file contains only this JSON.
 
    ```json
    {
@@ -120,7 +120,7 @@ Repeat Step 1's flow with the second policy.
    Denies creation or update of Azure Machine Learning / Azure AI Foundry pay-as-you-go (serverless) model endpoints (Microsoft.MachineLearningServices/workspaces/serverlessEndpoints) unless the offer '<publisher>/<offerName>' is present in the allowedModels parameter. An empty allowedModels array denies every offer — this is the default blanket-deny posture.
    ```
 5. **Category**: select **Use existing** → `AI Governance`.
-6. **POLICY RULE** editor — clear it and paste exactly:
+6. **POLICY RULE** editor — clear it and paste exactly. Offline copy: [policies/portal-paste/step2-mlw-serverless-endpoints.json](policies/portal-paste/step2-mlw-serverless-endpoints.json) (open in Notepad if GitHub is blocked).
 
    ```json
    {
@@ -376,7 +376,7 @@ By default Phase 0 lets people *create* an empty Azure OpenAI / AI Foundry accou
      Optional, stricter-mode policy. Blocks creation of Microsoft.CognitiveServices/accounts whose 'kind' is not present in the allowedKinds parameter. Empty array denies every kind. Not included in the default ai-model-governance initiative because Cognitive Services covers more than generative AI (Speech, Vision, Translator, ...). Assign this only if your organization wants to gate the parent account, not just the model deployment, and provide an explicit allowedKinds list for any non-GenAI workloads you still permit.
      ```
    - **Category**: **Use existing** → `AI Governance`.
-   - **POLICY RULE** — clear the editor and paste exactly:
+   - **POLICY RULE** — clear the editor and paste exactly. Offline copy: [policies/portal-paste/optional-cogsvc-account-kinds.json](policies/portal-paste/optional-cogsvc-account-kinds.json) (open in Notepad if GitHub is blocked).
 
      ```json
      {

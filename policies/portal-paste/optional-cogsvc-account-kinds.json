@@ -1,0 +1,39 @@
+{
+  "mode": "All",
+  "parameters": {
+    "effect": {
+      "type": "String",
+      "metadata": {
+        "displayName": "Effect",
+        "description": "Use Audit during rollout soak, Deny in steady state. Defaults to Audit so an accidental assignment never silently black-holes account creation."
+      },
+      "allowedValues": [ "Audit", "Deny", "Disabled" ],
+      "defaultValue": "Audit"
+    },
+    "allowedKinds": {
+      "type": "Array",
+      "metadata": {
+        "displayName": "Allowed Cognitive Services account kinds",
+        "description": "Array of approved values for Microsoft.CognitiveServices/accounts.kind, e.g. ['SpeechServices','ComputerVision']. Empty array denies every kind. Note: 'OpenAI' and 'AIServices' are the generative-AI kinds; omit them to keep the per-model allowlist as the only path to GenAI."
+      },
+      "defaultValue": []
+    }
+  },
+  "policyRule": {
+    "if": {
+      "allOf": [
+        {
+          "field": "type",
+          "equals": "Microsoft.CognitiveServices/accounts"
+        },
+        {
+          "field": "kind",
+          "notIn": "[parameters('allowedKinds')]"
+        }
+      ]
+    },
+    "then": {
+      "effect": "[parameters('effect')]"
+    }
+  }
+}
